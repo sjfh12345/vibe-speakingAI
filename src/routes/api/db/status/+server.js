@@ -1,28 +1,52 @@
+// src/routes/api/db/status/+server.js
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+import { env } from '$env/dynamic/private';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 export async function GET() {
-  try {
-    // 빈 테이블 이름 대신 수동 연결 테스트 진행
-    const { data, error } = await supabase.from('users').select('id').limit(1);
+	const url = env.SUPABASE_URL || PUBLIC_SUPABASE_URL;
+	const key = env.SUPABASE_ANON_KEY || PUBLIC_SUPABASE_ANON_KEY;
 
-    // 테이블이 없다는 에러(PGRST204, 42P01, PGRST116)가 나더라도 API 연결 통신 자체는 성공으로 간주
-    if (error && !['PGRST204', '42P01', 'PGRST116'].includes(error.code)) {
-      throw error;
-    }
+	if (!url || !key) {
+		return json(
+			{
+				connected: false,
+				error: 'Supabase URL 또는 Key가 설정되지 않았습니다.'
+			},
+			{ status: 500 }
+		);
+	}
 
-    return json({
-      status: 'ok',
-      message: 'Database connection verified via Supabase SDK',
-      timestamp: new Date().toISOString()
-    });
-  } catch (err) {
-    return json(
-      {
-        status: 'error',
-        message: err.message || 'Database connection failed'
-      },
-      { status: 500 }
-    );
-  }
+	const supabase = createClient(url, key);
+	const startTime = performance.now();
+
+	try {
+		const { data, error, count } = await supabase
+			.from('test_records')
+			.select('*', { count: 'exact' });
+
+		const latency = Math.round(performance.now() - startTime);
+
+		if (error && error.code !== '42P01') {
+			throw error;
+		}
+
+		return json({
+			connected: true,
+			latency_ms: latency,
+			database_name: 'Supabase PostgreSQL',
+			has_test_records_table: !error,
+			test_records_count: count ?? 0,
+			records: data || []
+		});
+	} catch (err) {
+		return json(
+			{
+				connected: false,
+				error: err.message
+			},
+			{ status: 500 }
+		);
+	}
 }
