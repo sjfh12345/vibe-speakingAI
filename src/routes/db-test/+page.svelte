@@ -1,7 +1,9 @@
 <script>
 	import { onMount } from 'svelte';
 	import UserNav from '$lib/components/UserNav.svelte';
-	import { supabase, isSupabaseConfigured, supabaseUrl } from '$lib/supabaseClient.js';
+	import { supabase, isSupabaseConfigured, supabaseUrl, updateSupabaseConfig } from '$lib/supabaseClient.js';
+
+	let { data } = $props();
 
 	let loading = $state(true);
 	let dbStatus = $state(null);
@@ -15,6 +17,12 @@
 	let isSubmitting = $state(false);
 	let isCreatingTable = $state(false);
 	let copied = $state(false);
+
+	$effect(() => {
+		if (data?.supabaseUrl && data?.supabaseAnonKey) {
+			updateSupabaseConfig(data.supabaseUrl, data.supabaseAnonKey);
+		}
+	});
 
 	const sampleSql = `-- 1. DB 연결 테스트용 테이블 생성
 CREATE TABLE IF NOT EXISTS public.test_records (

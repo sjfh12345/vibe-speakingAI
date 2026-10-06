@@ -88,7 +88,7 @@
 	// 백엔드 및 시스템 상태 자가진단 (Health Check)
 	async function checkSystemHealth() {
 		backendStatus = 'checking';
-		addLog('시스템 진단', 'info', 'FastAPI 백엔드(/api/health) 상태 확인 중 (Vite 프록시 ➜ 8000 포트)...');
+		addLog('시스템 진단', 'info', '서버리스 백엔드(/api/health) 상태 확인 중...');
 
 		try {
 			const controller = new AbortController();
@@ -103,14 +103,14 @@
 				const data = await resp.json();
 				backendStatus = 'online';
 				apiKeyStatus = data.api_key_status;
-				addLog('시스템 진단', 'success', `백엔드 온라인 확인됨 (API 키 상태: ${data.api_key_status.hint})`);
+				addLog('시스템 진단', 'success', `서버 온라인 확인됨 (API 키 상태: ${data.api_key_status.hint})`);
 			} else {
 				backendStatus = 'offline';
-				addLog('시스템 진단', 'warn', `백엔드가 HTTP ${resp.status} 응답을 반환했습니다.`);
+				addLog('시스템 진단', 'warn', `서버가 HTTP ${resp.status} 응답을 반환했습니다.`);
 			}
 		} catch (err) {
 			backendStatus = 'offline';
-			addLog('시스템 진단', 'error', `백엔드 서버에 연결할 수 없습니다 (${err.name}: ${err.message}). FastAPI 서버가 포트 8000에서 실행 중인지 확인하세요.`);
+			addLog('시스템 진단', 'error', `서버에 연결할 수 없습니다 (${err.name}: ${err.message}). Vercel 환경 변수(OPENAI_API_KEY) 설정을 확인하세요.`);
 		}
 
 		// 마이크 권한 상태 체크
