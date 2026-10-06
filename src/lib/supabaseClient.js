@@ -3,11 +3,21 @@ import { env as publicEnv } from '$env/dynamic/public';
 
 /**
  * Supabase URL 정규화:
- * 끝에 붙은 '/rest/v1/', '/rest/v1', 또는 불필요한 슬래시('/')를 자동으로 정리합니다.
+ * 1) postgresql://postgres:...@db.<project-ref>.supabase.co:5432/... 형태의 DB URI를 https://<project-ref>.supabase.co 로 자동 변환
+ * 2) 끝에 붙은 '/rest/v1/', '/rest/v1', 또는 불필요한 슬래시('/')를 자동으로 정리합니다.
  */
 export function cleanSupabaseUrl(rawUrl) {
 	if (!rawUrl) return '';
 	let cleaned = String(rawUrl).trim();
+
+	// postgresql:// 또는 postgres:// 형태인 경우 REST API URL로 자동 추출 변환
+	if (cleaned.startsWith('postgres://') || cleaned.startsWith('postgresql://')) {
+		const match = cleaned.match(/@db\.([a-z0-9-]+)\.supabase\.co/i);
+		if (match && match[1]) {
+			return `https://${match[1]}.supabase.co`;
+		}
+	}
+
 	cleaned = cleaned.replace(/\/rest\/v1\/?$/i, '');
 	cleaned = cleaned.replace(/\/+$/, '');
 	return cleaned;
