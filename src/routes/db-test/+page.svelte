@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import UserNav from '$lib/components/UserNav.svelte';
-	import { supabase, isSupabaseConfigured } from '$lib/supabaseClient.js';
+	import { supabase, isSupabaseConfigured, supabaseUrl } from '$lib/supabaseClient.js';
 
 	let loading = $state(true);
 	let dbStatus = $state(null);
@@ -49,8 +49,8 @@ WITH CHECK (true);`;
 			if (!isSupabaseConfigured) {
 				dbStatus = {
 					connected: false,
-					error: 'PUBLIC_SUPABASE_URL 또는 PUBLIC_SUPABASE_ANON_KEY가 .env 파일(또는 Vercel 환경 변수)에 설정되지 않았습니다.',
-					masked_url: '미설정 (API Key 필요)'
+					error: 'SUPABASE_URL(또는 SUPABASE_BASE_URL) 및 SUPABASE_ANON_KEY가 환경 변수에 설정되지 않았습니다.',
+					masked_url: '미설정 (SUPABASE_ANON_KEY 필요)'
 				};
 				loading = false;
 				return;
@@ -68,7 +68,7 @@ WITH CHECK (true);`;
 				if (error.code === '42P01' || error.message.includes('relation "public.test_records" does not exist')) {
 					dbStatus = {
 						connected: true,
-						masked_url: 'https://iwsvipldfphknjzyrvoj.supabase.co',
+						masked_url: supabaseUrl || 'https://supabase.co',
 						latency_ms: latency,
 						database_name: 'postgres (Supabase)',
 						has_test_records_table: false,
@@ -81,7 +81,7 @@ WITH CHECK (true);`;
 			} else {
 				dbStatus = {
 					connected: true,
-					masked_url: 'https://iwsvipldfphknjzyrvoj.supabase.co',
+					masked_url: supabaseUrl || 'https://supabase.co',
 					latency_ms: latency,
 					database_name: 'postgres (Supabase)',
 					has_test_records_table: true,
@@ -97,7 +97,7 @@ WITH CHECK (true);`;
 			console.error('Supabase DB 상태 조회 에러:', err);
 			dbStatus = {
 				connected: false,
-				masked_url: 'https://iwsvipldfphknjzyrvoj.supabase.co',
+				masked_url: supabaseUrl || '미설정',
 				error: err.message || 'Supabase 통신 오류'
 			};
 			errorMessage = err.message;

@@ -3,7 +3,13 @@ from dotenv import load_dotenv
 import psycopg
 
 load_dotenv(override=True)
-db_url = os.getenv('SUPABASE_DB_URL')
+db_url = (
+    os.getenv('SUPABASE_DB_URL')
+    or os.getenv('DATABASE_URL')
+    or os.getenv('POSTGRES_URL')
+    or os.getenv('PUBLIC_SUPABASE_DB_URL')
+    or ''
+)
 
 sql = """
 CREATE TABLE IF NOT EXISTS public.test_records (
