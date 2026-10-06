@@ -57,7 +57,7 @@ WITH CHECK (true);`;
 			if (!isSupabaseConfigured) {
 				dbStatus = {
 					connected: false,
-					error: 'SUPABASE_URL(또는 SUPABASE_BASE_URL) 및 SUPABASE_ANON_KEY가 환경 변수에 설정되지 않았습니다.',
+					error: 'PUBLIC_SUPABASE_URL 및 PUBLIC_SUPABASE_ANON_KEY 환경 변수가 설정되지 않았습니다.',
 					masked_url: '미설정 (SUPABASE_ANON_KEY 필요)'
 				};
 				loading = false;
@@ -78,7 +78,7 @@ WITH CHECK (true);`;
 						connected: true,
 						masked_url: supabaseUrl || 'https://supabase.co',
 						latency_ms: latency,
-						database_name: 'postgres (Supabase)',
+						database_name: 'Supabase REST API (PostgreSQL)',
 						has_test_records_table: false,
 						test_records_count: 0
 					};
@@ -91,7 +91,7 @@ WITH CHECK (true);`;
 					connected: true,
 					masked_url: supabaseUrl || 'https://supabase.co',
 					latency_ms: latency,
-					database_name: 'postgres (Supabase)',
+					database_name: 'Supabase REST API (PostgreSQL)',
 					has_test_records_table: true,
 					test_records_count: count ?? data.length
 				};
@@ -170,21 +170,21 @@ WITH CHECK (true);`;
 		successMessage = '';
 
 		try {
-			// 초기 레코드 삽입 시도 (테이블이 있을 때)
+			// 클라이언트 측에서는 SQL DDL(CREATE TABLE)을 직접 실행할 수 없으므로 기본 시드 데이터 삽입만 시도
 			const { error } = await supabase
 				.from('test_records')
 				.insert([
 					{
 						title: 'Supabase 연결 성공!',
-						content: 'Vercel 프론트엔드와 Supabase가 직접 정상적으로 통신 중입니다.'
+						content: 'SvelteKit 프론트엔드와 Supabase가 직접 정상적으로 통신 중입니다.'
 					}
 				]);
 
 			if (error) {
-				throw new Error('Supabase SQL Editor에서 위의 CREATE TABLE 쿼리를 먼저 1회 실행해주세요: ' + error.message);
+				throw new Error('Supabase 대시보드의 SQL Editor에서 위의 SQL 쿼리를 먼저 실행해 주셔야 합니다: ' + error.message);
 			}
 
-			successMessage = '테이블 데이터가 준비되었습니다!';
+			successMessage = '초기 테스트 데이터가 성공적으로 생성되었습니다!';
 			await fetchDbStatus();
 		} catch (err) {
 			errorMessage = err.message;
@@ -233,7 +233,7 @@ WITH CHECK (true);`;
 					</h1>
 				</div>
 				<p class="text-slate-400 text-sm mt-1 ml-11">
-					FastAPI 백엔드를 통한 Supabase PostgreSQL 통신 및 데이터 입출력 테스트
+					Supabase JS 클라이언트를 통한 PostgreSQL 통신 및 데이터 CRUD 테스트
 				</p>
 			</div>
 
@@ -272,7 +272,7 @@ WITH CHECK (true);`;
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 					</svg>
 					<div class="text-sm">
-						<p class="font-bold text-rose-100">데이터베이스 연결 실패 원인</p>
+						<p class="font-bold text-rose-100">데이터베이스 연결/실행 실패 원인</p>
 						<p class="mt-1 font-mono text-xs text-rose-300 bg-rose-950/50 p-2.5 rounded-lg border border-rose-800/40 select-all">{currentError}</p>
 					</div>
 				</div>
@@ -283,13 +283,13 @@ WITH CHECK (true);`;
 					</p>
 					<ul class="list-disc list-inside space-y-1 text-slate-300">
 						<li>
-							<span class="text-slate-100 font-medium">URL 형태 확인:</span> <code class="text-emerald-400 bg-slate-950 px-1.5 py-0.5 rounded">https://...</code>(REST API)가 아니라 <code class="text-emerald-400 bg-slate-950 px-1.5 py-0.5 rounded">postgresql://postgres.[ref]:[PASSWORD]@...</code> 형태여야 합니다.
+							<span class="text-slate-100 font-medium">환경변수 설정 확인:</span> <code class="text-emerald-400 bg-slate-950 px-1.5 py-0.5 rounded">PUBLIC_SUPABASE_URL</code> 및 <code class="text-emerald-400 bg-slate-950 px-1.5 py-0.5 rounded">PUBLIC_SUPABASE_ANON_KEY</code>가 <code class="text-slate-400">.env</code>에 등록되어 있는지 확인하세요.
 						</li>
 						<li>
-							<span class="text-slate-100 font-medium">Supabase 확인 위치:</span> Supabase 대시보드 &gt; 프로젝트 &gt; <span class="text-teal-300">Connect 버튼</span> &gt; <span class="text-teal-300">Connection string &gt; URI</span>를 복사하세요.
+							<span class="text-slate-100 font-medium">테이블 미존재 에러 발생 시:</span> 아래의 SQL 문구를 복사하여 <span class="text-teal-300">Supabase Dashboard &gt; SQL Editor</span>에 붙여넣고 실행하세요.
 						</li>
 						<li>
-							<span class="text-slate-100 font-medium">비밀번호 변경:</span> <code class="text-amber-400">[YOUR-PASSWORD]</code> 자리에 Supabase 프로젝트 생성 시 설정한 실제 DB 비밀번호를 입력해야 합니다.
+							<span class="text-slate-100 font-medium">RLS 정책 확인:</span> 데이터 조회/추가가 안 된다면 Supabase의 Row Level Security 정책이 허용되어 있는지 확인해 주세요.
 						</li>
 					</ul>
 				</div>
@@ -304,7 +304,6 @@ WITH CHECK (true);`;
 				<p class="text-sm font-medium">{successMessage}</p>
 			</div>
 		{/if}
-
 
 		<!-- Connection Status Card -->
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -332,199 +331,18 @@ WITH CHECK (true);`;
 
 			<!-- Status Block 2 -->
 			<div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm">
-				<p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">연결 대상 DB</p>
+				<p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">연결 대상 엔드포인트</p>
 				<p class="mt-3 text-sm font-mono text-slate-200 truncate" title={dbStatus?.masked_url || ''}>
-					{dbStatus?.masked_url || 'SUPABASE_DB_URL 미설정'}
+					{dbStatus?.masked_url || 'SUPABASE_URL 미설정'}
 				</p>
 				<p class="text-xs text-slate-400 mt-2">
-					데이터베이스: <span class="text-slate-300 font-medium">{dbStatus?.database_name || '-'}</span>
+					엔진: <span class="text-slate-300 font-medium">{dbStatus?.database_name || '-'}</span>
 				</p>
 			</div>
 
 			<!-- Status Block 3 -->
 			<div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm">
-				<p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Public 테이블 현황</p>
+				<p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">테이블 상태</p>
 				<div class="mt-3 flex items-baseline gap-2">
-					<span class="text-2xl font-bold text-slate-100">
-						{dbStatus?.public_tables ? dbStatus.public_tables.length : 0}
-					</span>
-					<span class="text-xs text-slate-400">개 테이블 감지됨</span>
-				</div>
-				<div class="mt-2 text-xs text-slate-400 truncate">
-					{#if dbStatus?.public_tables && dbStatus.public_tables.length > 0}
-						목록: <span class="text-teal-300">{dbStatus.public_tables.join(', ')}</span>
-					{:else}
-						<span class="text-amber-300/80">현재 public 스키마에 테이블이 없습니다.</span>
-					{/if}
-				</div>
-			</div>
-		</div>
-
-		<!-- SQL 안내 및 원클릭 생성 섹션 -->
-		<div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-				<div>
-					<h2 class="text-lg font-semibold text-slate-100 flex items-center gap-2">
-						<svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-						</svg>
-						테이블 생성 SQL 쿼리 (Supabase SQL Editor 실행용)
-					</h2>
-					<p class="text-xs text-slate-400 mt-0.5">
-						Supabase Dashboard &gt; SQL Editor에 복사하여 붙여넣거나, 아래 원클릭 버튼으로 즉시 생성할 수 있습니다.
-					</p>
-				</div>
-				<div class="flex items-center gap-2 shrink-0">
-					<button 
-						onclick={copySql}
-						class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
-					>
-						{#if copied}
-							<svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-							</svg>
-							<span class="text-emerald-400">복사 완료!</span>
-						{:else}
-							<svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-							</svg>
-							<span>SQL 복사하기</span>
-						{/if}
-					</button>
-
-					<button 
-						onclick={handleInitTable}
-						disabled={isCreatingTable || !dbStatus?.connected}
-						class="px-3 py-1.5 bg-emerald-600/90 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
-					>
-						{#if isCreatingTable}
-							<svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-							</svg>
-							<span>생성 중...</span>
-						{:else}
-							<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-							</svg>
-							<span>여기서 테이블 즉시 생성</span>
-						{/if}
-					</button>
-				</div>
-			</div>
-
-			<pre class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed selection:bg-emerald-500/40"><code>{sampleSql}</code></pre>
-		</div>
-
-		<!-- CRUD Test Section -->
-		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-			<!-- Form: 새 레코드 추가 -->
-			<div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 lg:col-span-1 space-y-4">
-				<h3 class="text-base font-semibold text-slate-100 flex items-center gap-2">
-					<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-					</svg>
-					새 테스트 데이터 추가
-				</h3>
-				<p class="text-xs text-slate-400">
-					DB 쓰기(INSERT) 테스트를 위해 제목과 내용을 입력하고 저장해 보세요.
-				</p>
-
-				<form onsubmit={handleAddRecord} class="space-y-3 pt-2">
-					<div>
-						<label for="record-title" class="block text-xs font-medium text-slate-300 mb-1">제목 (Title)</label>
-						<input 
-							id="record-title"
-							type="text" 
-							bind:value={newTitle} 
-							placeholder="예: 첫 번째 통신 테스트" 
-							required
-							class="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
-						/>
-					</div>
-					<div>
-						<label for="record-content" class="block text-xs font-medium text-slate-300 mb-1">내용 (Content)</label>
-						<textarea 
-							id="record-content"
-							bind:value={newContent} 
-							rows="3" 
-							placeholder="예: Supabase PostgreSQL과 FastAPI 간의 통신이 원활하게 작동합니다." 
-							class="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 resize-none"
-						></textarea>
-					</div>
-					<button 
-						type="submit" 
-						disabled={isSubmitting || !dbStatus?.connected || !newTitle.trim()}
-						class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-sm rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2"
-					>
-						{#if isSubmitting}
-							<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-							</svg>
-							저장 중...
-						{:else}
-							<span>데이터베이스에 저장</span>
-						{/if}
-					</button>
-				</form>
-			</div>
-
-			<!-- List: 레코드 목록 조회 -->
-			<div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 lg:col-span-2 space-y-4">
-				<div class="flex items-center justify-between">
-					<h3 class="text-base font-semibold text-slate-100 flex items-center gap-2">
-						<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-						</svg>
-						저장된 데이터 목록 (test_records)
-					</h3>
-					<span class="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-						총 {recordsData?.records ? recordsData.records.length : 0}건
-					</span>
-				</div>
-
-				{#if !recordsData?.table_exists}
-					<div class="p-6 text-center border border-dashed border-slate-800 rounded-xl bg-slate-950/40">
-						<p class="text-slate-400 text-sm">
-							아직 <code class="text-emerald-400 font-mono">public.test_records</code> 테이블이 생성되지 않았습니다.
-						</p>
-						<p class="text-xs text-slate-500 mt-1">
-							위의 SQL 쿼리를 Supabase에서 실행하거나 [여기서 테이블 즉시 생성] 버튼을 눌러주세요.
-						</p>
-					</div>
-				{:else if recordsData.records.length === 0}
-					<div class="p-6 text-center border border-dashed border-slate-800 rounded-xl bg-slate-950/40">
-						<p class="text-slate-400 text-sm">저장된 테스트 레코드가 없습니다.</p>
-						<p class="text-xs text-slate-500 mt-1">왼쪽 폼에서 첫 번째 데이터를 추가해보세요!</p>
-					</div>
-				{:else}
-					<div class="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-						{#each recordsData.records as record (record.id)}
-							<div class="p-4 bg-slate-950/70 border border-slate-800/80 rounded-xl hover:border-slate-700 transition-all flex items-start justify-between gap-4 group">
-								<div class="space-y-1 min-w-0">
-									<h4 class="text-sm font-semibold text-slate-200 truncate">{record.title}</h4>
-									{#if record.content}
-										<p class="text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">{record.content}</p>
-									{/if}
-									<div class="flex items-center gap-3 pt-1 text-[11px] text-slate-500">
-										<span class="font-mono">{record.id.slice(0, 8)}...</span>
-										<span>•</span>
-										<span>{record.created_at ? new Date(record.created_at).toLocaleString() : ''}</span>
-									</div>
-								</div>
-								<button 
-									onclick={() => handleDeleteRecord(record.id)}
-									class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors opacity-80 group-hover:opacity-100 cursor-pointer"
-									title="삭제"
-								>
-									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-									</svg>
-								</button>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
-		</div>
-	</div>
-</div>
+					{#if dbStatus?.has_test_records_table}
+						<span class="
