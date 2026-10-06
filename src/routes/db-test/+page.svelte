@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import UserNav from '$lib/components/UserNav.svelte';
+	import { supabase, isSupabaseConfigured } from '$lib/supabaseClient.js';
 
 	let loading = $state(true);
 	let dbStatus = $state(null);
@@ -27,13 +28,13 @@ CREATE TABLE IF NOT EXISTS public.test_records (
 -- 2. 테스트용 초기 데이터 삽입
 INSERT INTO public.test_records (title, content)
 VALUES 
-    ('Supabase 연결 성공!', 'FastAPI와 Supabase PostgreSQL이 정상적으로 통신 중입니다.'),
-    ('Speaking AI 연동 준비', '음성 대화 기록 및 유저 세션 데이터를 안전하게 저장할 수 있습니다.');
+    ('Supabase 연결 성공!', 'SvelteKit과 Supabase가 직접 정상적으로 통신 중입니다.'),
+    ('Speaking AI 연동 완료', 'Vercel 배포 환경에서도 안전하게 데이터를 저장하고 조회할 수 있습니다.');
 
--- 3. RLS(Row Level Security) 설정 (선택 사항)
+-- 3. RLS(Row Level Security) 설정
 ALTER TABLE public.test_records ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow all operations for authenticated and anon" 
+CREATE POLICY "Allow all operations for anon" 
 ON public.test_records 
 FOR ALL 
 USING (true) 
@@ -42,31 +43,66 @@ WITH CHECK (true);`;
 	async function fetchDbStatus() {
 		loading = true;
 		errorMessage = '';
+		const startTime = performance.now();
+
 		try {
-			const res = await fetch('/api/db/status');
-			if (!res.ok) {
-				throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+			if (!isSupabaseConfigured) {
+				dbStatus = {
+					connected: false,
+					error: 'PUBLIC_SUPABASE_URL 또는 PUBLIC_SUPABASE_ANON_KEY가 .env 파일(또는 Vercel 환경 변수)에 설정되지 않았습니다.',
+					masked_url: '미설정 (API Key 필요)'
+				};
+				loading = false;
+				return;
 			}
-			dbStatus = await res.json();
-			if (dbStatus.connected) {
-				await fetchRecords();
+
+			// Supabase test_records 쿼리 테스트
+			const { data, error, count } = await supabase
+				.from('test_records')
+				.select('*', { count: 'exact' })
+				.order('created_at', { ascending: false });
+
+			const latency = Math.round(performance.now() - startTime);
+
+			if (error) {
+				if (error.code === '42P01' || error.message.includes('relation "public.test_records" does not exist')) {
+					dbStatus = {
+						connected: true,
+						masked_url: 'https://iwsvipldfphknjzyrvoj.supabase.co',
+						latency_ms: latency,
+						database_name: 'postgres (Supabase)',
+						has_test_records_table: false,
+						test_records_count: 0
+					};
+					recordsData = { table_exists: false, count: 0, records: [] };
+				} else {
+					throw error;
+				}
+			} else {
+				dbStatus = {
+					connected: true,
+					masked_url: 'https://iwsvipldfphknjzyrvoj.supabase.co',
+					latency_ms: latency,
+					database_name: 'postgres (Supabase)',
+					has_test_records_table: true,
+					test_records_count: count ?? data.length
+				};
+				recordsData = {
+					table_exists: true,
+					count: data.length,
+					records: data
+				};
 			}
 		} catch (err) {
-			console.error('DB 상태 조회 에러:', err);
-			errorMessage = err.message || '백엔드 서버(/api/db/status)와 통신할 수 없습니다. 백엔드가 실행 중인지 확인하세요.';
+			console.error('Supabase DB 상태 조회 에러:', err);
+			dbStatus = {
+				connected: false,
+				masked_url: 'https://iwsvipldfphknjzyrvoj.supabase.co',
+				error: err.message || 'Supabase 통신 오류'
+			};
+			errorMessage = err.message;
 		} finally {
 			loading = false;
-		}
-	}
-
-	async function fetchRecords() {
-		try {
-			const res = await fetch('/api/db/records');
-			if (res.ok) {
-				recordsData = await res.json();
-			}
-		} catch (err) {
-			console.error('레코드 조회 에러:', err);
 		}
 	}
 
@@ -79,27 +115,27 @@ WITH CHECK (true);`;
 		successMessage = '';
 
 		try {
-			const res = await fetch('/api/db/records', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					title: newTitle.trim(),
-					content: newContent.trim()
-				})
-			});
+			const { data, error } = await supabase
+				.from('test_records')
+				.insert([
+					{
+						title: newTitle.trim(),
+						content: newContent.trim()
+					}
+				])
+				.select();
 
-			if (!res.ok) {
-				const errorData = await res.json().catch(() => ({}));
-				throw new Error(errorData.detail || '데이터 저장에 실패했습니다.');
+			if (error) {
+				throw error;
 			}
 
 			newTitle = '';
 			newContent = '';
-			successMessage = '새 레코드가 성공적으로 추가되었습니다!';
+			successMessage = '새 레코드가 Supabase에 성공적으로 저장되었습니다!';
 			await fetchDbStatus();
 			setTimeout(() => (successMessage = ''), 4000);
 		} catch (err) {
-			errorMessage = err.message;
+			errorMessage = err.message || '데이터 저장에 실패했습니다.';
 		} finally {
 			isSubmitting = false;
 		}
@@ -109,20 +145,14 @@ WITH CHECK (true);`;
 		if (!confirm('이 레코드를 삭제하시겠습니까?')) return;
 
 		try {
-			const res = await fetch(`/api/db/records/${id}`, {
-				method: 'DELETE'
-			});
-
-			if (!res.ok) {
-				const errorData = await res.json().catch(() => ({}));
-				throw new Error(errorData.detail || '삭제 실패');
-			}
+			const { error } = await supabase.from('test_records').delete().eq('id', id);
+			if (error) throw error;
 
 			successMessage = '레코드가 삭제되었습니다.';
 			await fetchDbStatus();
 			setTimeout(() => (successMessage = ''), 3000);
 		} catch (err) {
-			errorMessage = err.message;
+			errorMessage = err.message || '삭제 실패';
 		}
 	}
 
@@ -132,13 +162,21 @@ WITH CHECK (true);`;
 		successMessage = '';
 
 		try {
-			const res = await fetch('/api/db/init-table', { method: 'POST' });
-			if (!res.ok) {
-				const errorData = await res.json().catch(() => ({}));
-				throw new Error(errorData.detail || '테이블 생성 실패');
+			// 초기 레코드 삽입 시도 (테이블이 있을 때)
+			const { error } = await supabase
+				.from('test_records')
+				.insert([
+					{
+						title: 'Supabase 연결 성공!',
+						content: 'Vercel 프론트엔드와 Supabase가 직접 정상적으로 통신 중입니다.'
+					}
+				]);
+
+			if (error) {
+				throw new Error('Supabase SQL Editor에서 위의 CREATE TABLE 쿼리를 먼저 1회 실행해주세요: ' + error.message);
 			}
-			const data = await res.json();
-			successMessage = data.message || '테이블이 성공적으로 생성되었습니다!';
+
+			successMessage = '테이블 데이터가 준비되었습니다!';
 			await fetchDbStatus();
 		} catch (err) {
 			errorMessage = err.message;

@@ -1,22 +1,11 @@
-// Svelte 5 Runes 기반 인증 상태 스토어
+// Svelte 5 Runes 기반 Supabase Auth 스토어
 import { browser } from '$app/environment';
-
-function formatErrorMessage(detail, fallback) {
-	if (!detail) return fallback;
-	if (typeof detail === 'string') return detail;
-	if (Array.isArray(detail)) {
-		return detail.map((d) => d.msg || d.message || JSON.stringify(d)).join(', ');
-	}
-	if (typeof detail === 'object') {
-		return detail.message || detail.msg || JSON.stringify(detail);
-	}
-	return String(detail);
-}
+import { supabase, isSupabaseConfigured } from './supabaseClient.js';
 
 class AuthStore {
 	user = $state(null);
-	token = $state(null);
-	isLoading = $state(false);
+	session = $state(null);
+	isLoading = $state(true);
 	isInitialized = $state(false);
 	error = $state(null);
 
@@ -27,70 +16,98 @@ class AuthStore {
 	}
 
 	get isAuthenticated() {
-		return !!this.user && !!this.token;
+		return !!this.user;
+	}
+
+	get token() {
+		return this.session?.access_token || null;
 	}
 
 	/**
-	 * 앱 초기화 시 localStorage에서 토큰을 읽어와 사용자 검증
+	 * Supabase 세션 초기화 및 상태 변화 감지 리스너 등록
 	 */
 	async init() {
 		if (!browser) return;
 		try {
 			this.isLoading = true;
-			const savedToken = localStorage.getItem('speaking_ai_token');
-			if (savedToken) {
-				this.token = savedToken;
-				const res = await fetch('/api/auth/me', {
-					headers: {
-						Authorization: `Bearer ${savedToken}`
-					}
-				});
-				if (res.ok) {
-					const data = await res.json();
-					if (data.success && data.user) {
-						this.user = data.user;
-					} else {
-						this.logout();
-					}
-				} else {
-					// 토큰 만료 또는 유효하지 않음
-					this.logout();
-				}
+
+			// 1. 현재 세션 가져오기
+			const { data, error } = await supabase.auth.getSession();
+			if (error) {
+				console.warn('Supabase 세션 조회 실패:', error.message);
+			} else if (data?.session) {
+				this.session = data.session;
+				this.user = this._formatUser(data.session.user);
 			}
+
+			// 2. 인증 상태 변화 이벤트 구독
+			supabase.auth.onAuthStateChange((_event, session) => {
+				if (session?.user) {
+					this.session = session;
+					this.user = this._formatUser(session.user);
+				} else {
+					this.session = null;
+					this.user = null;
+				}
+				this.isLoading = false;
+			});
 		} catch (err) {
-			console.error('인증 상태 복원 실패:', err);
-			this.logout();
+			console.error('인증 초기화 중 오류:', err);
 		} finally {
 			this.isLoading = false;
 			this.isInitialized = true;
 		}
 	}
 
+	_formatUser(rawUser) {
+		if (!rawUser) return null;
+		return {
+			id: rawUser.id,
+			email: rawUser.email,
+			name:
+				rawUser.user_metadata?.name ||
+				rawUser.user_metadata?.full_name ||
+				rawUser.email?.split('@')[0] ||
+				'사용자',
+			avatar_url: rawUser.user_metadata?.avatar_url || '',
+			created_at: rawUser.created_at
+		};
+	}
+
 	/**
-	 * 로그인
+	 * 로그인 (Supabase signInWithPassword)
 	 */
 	async login(email, password) {
 		this.isLoading = true;
 		this.error = null;
 		try {
-			const res = await fetch('/api/auth/login', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password })
+			if (!isSupabaseConfigured) {
+				throw new Error('Supabase URL 및 API Key가 .env에 설정되지 않았습니다.');
+			}
+
+			const { data, error } = await supabase.auth.signInWithPassword({
+				email: email.trim(),
+				password
 			});
 
-			const data = await res.json().catch(() => ({}));
-			if (!res.ok || !data.success) {
-				const msg = formatErrorMessage(data.detail || data.message, `로그인 실패 (${res.status})`);
+			if (error) {
+				// Supabase 에러 한글화
+				let msg = error.message;
+				if (msg.includes('Invalid login credentials')) {
+					msg = '이메일 또는 비밀번호가 일치하지 않습니다.';
+				} else if (msg.includes('Email not confirmed')) {
+					msg = '이메일 인증이 완료되지 않았습니다. Supabase 대시보드(Auth > Providers > Email)에서 Confirm Email을 끄거나 메일을 확인해주세요.';
+				}
 				throw new Error(msg);
 			}
 
-			this.token = data.token;
-			this.user = data.user;
-			if (browser) {
-				localStorage.setItem('speaking_ai_token', data.token);
-			}
-			return { success: true, user: data.user, message: data.message };
+			this.session = data.session;
+			this.user = this._formatUser(data.user);
+			return {
+				success: true,
+				user: this.user,
+				message: `${this.user.name}님, 환영합니다!`
+			};
 		} catch (err) {
 			this.error = err.message;
 			throw err;
@@ -100,30 +117,53 @@ class AuthStore {
 	}
 
 	/**
-	 * 회원가입
+	 * 회원가입 (Supabase signUp)
 	 */
 	async register(email, password, name) {
 		this.isLoading = true;
 		this.error = null;
 		try {
-			const res = await fetch('/api/auth/register', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password, name })
+			if (!isSupabaseConfigured) {
+				throw new Error('Supabase URL 및 API Key가 .env에 설정되지 않았습니다.');
+			}
+
+			const { data, error } = await supabase.auth.signUp({
+				email: email.trim(),
+				password,
+				options: {
+					data: {
+						name: name.trim()
+					}
+				}
 			});
 
-			const data = await res.json().catch(() => ({}));
-			if (!res.ok || !data.success) {
-				const msg = formatErrorMessage(data.detail || data.message, `회원가입 실패 (${res.status})`);
+			if (error) {
+				let msg = error.message;
+				if (msg.includes('User already registered')) {
+					msg = '이미 가입된 이메일 주소입니다. 로그인을 진행해주세요.';
+				} else if (msg.includes('Password should be at least')) {
+					msg = '비밀번호는 최소 6자 이상이어야 합니다.';
+				}
 				throw new Error(msg);
 			}
 
-			this.token = data.token;
-			this.user = data.user;
-			if (browser) {
-				localStorage.setItem('speaking_ai_token', data.token);
+			// 이메일 인증이 꺼져있으면 즉시 세션 발급됨
+			if (data.session) {
+				this.session = data.session;
+				this.user = this._formatUser(data.user);
+				return {
+					success: true,
+					user: this.user,
+					message: '회원가입 및 로그인이 완료되었습니다!'
+				};
+			} else {
+				// 이메일 확인이 켜져 있는 경우
+				return {
+					success: true,
+					user: this._formatUser(data.user),
+					message: '가입 확인 메일이 발송되었습니다. 메일함에서 인증 링크를 확인해주세요.'
+				};
 			}
-			return { success: true, user: data.user, message: data.message };
 		} catch (err) {
 			this.error = err.message;
 			throw err;
@@ -133,19 +173,22 @@ class AuthStore {
 	}
 
 	/**
-	 * 로그아웃
+	 * 로그아웃 (Supabase signOut)
 	 */
-	logout() {
-		this.user = null;
-		this.token = null;
-		this.error = null;
-		if (browser) {
-			localStorage.removeItem('speaking_ai_token');
+	async logout() {
+		try {
+			await supabase.auth.signOut();
+		} catch (e) {
+			console.warn('로그아웃 처리 중 예외:', e);
+		} finally {
+			this.user = null;
+			this.session = null;
+			this.error = null;
 		}
 	}
 
 	/**
-	 * 인증 토큰이 자동으로 첨부된 fetch 유틸리티
+	 * 인증 헤더가 첨부된 fetch 유틸리티
 	 */
 	async authFetch(url, options = {}) {
 		const headers = new Headers(options.headers || {});
