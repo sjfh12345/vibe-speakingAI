@@ -127,13 +127,16 @@ class AuthStore {
 				throw new Error('Supabase URL 및 API Key가 .env에 설정되지 않았습니다.');
 			}
 
+			const redirectUrl = browser ? `${window.location.origin}/` : 'https://speakin-ai.vercel.app/';
+
 			const { data, error } = await supabase.auth.signUp({
 				email: email.trim(),
 				password,
 				options: {
 					data: {
 						name: name.trim()
-					}
+					},
+					emailRedirectTo: redirectUrl
 				}
 			});
 

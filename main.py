@@ -75,26 +75,37 @@ def get_masked_db_url(url: str) -> str:
         return "설정됨 (마스킹 처리됨)"
 
 def get_db_url() -> str:
-    # SUPABASE_DB_URL, PUBLIC_SUPABASE_DB_URL, DATABASE_URL 모두 지원
-    url = (
-        os.getenv("SUPABASE_DB_URL") 
-        or os.getenv("PUBLIC_SUPABASE_DB_URL") 
-        or os.getenv("DATABASE_URL") 
-        or ""
-    ).strip()
-    return url
+    # SUPABASE_BASE_URL(postgresql://), SUPABASE_DB_URL, DATABASE_URL, POSTGRES_URL 모두 지원
+    candidate_urls = [
+        os.getenv("SUPABASE_BASE_URL", ""),
+        os.getenv("SUPABASE_DB_URL", ""),
+        os.getenv("DATABASE_URL", ""),
+        os.getenv("POSTGRES_URL", ""),
+        os.getenv("PUBLIC_SUPABASE_DB_URL", "")
+    ]
+    # postgresql:// 로 시작하는 URI 우선 탐색
+    for u in candidate_urls:
+        val = u.strip()
+        if val and (val.startswith("postgres://") or val.startswith("postgresql://")):
+            return val
+    # 일반 candidate 반환
+    for u in candidate_urls:
+        val = u.strip()
+        if val:
+            return val
+    return ""
 
 def get_db_connection():
     db_url = get_db_url()
     if not db_url:
         raise HTTPException(
             status_code=400,
-            detail="SUPABASE_DB_URL(또는 PUBLIC_SUPABASE_DB_URL)이 .env 파일에 설정되지 않았습니다."
+            detail="SUPABASE_BASE_URL(또는 SUPABASE_DB_URL/DATABASE_URL)이 환경 변수에 설정되지 않았습니다."
         )
     if db_url.startswith("http://") or db_url.startswith("https://"):
         raise HTTPException(
             status_code=400,
-            detail="현재 설정된 URL은 Supabase REST API 주소(https://...)입니다. PostgreSQL DB 직접 접속을 위해서는 Supabase 대시보드(Connect > Connection string > URI)의 'postgresql://postgres:[PASSWORD]@...' 형태의 URI를 입력해야 합니다."
+            detail="현재 설정된 URL은 Supabase REST API 주소(https://...)입니다. PostgreSQL DB 직접 접속을 위해서는 'postgresql://postgres:[PASSWORD]@...' 형태의 URI를 입력해야 합니다."
         )
     return psycopg.connect(db_url, row_factory=dict_row)
 
