@@ -5,6 +5,7 @@
 	import AudioInfoPanel from '$lib/components/AudioInfoPanel.svelte';
 	import RealtimeAgent from '$lib/components/RealtimeAgent.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import UserNav from '$lib/components/UserNav.svelte';
 
 	let activeTab = $state('realtime'); // 'realtime' | 'studio'
 	let recordings = $state([]);
@@ -203,20 +204,34 @@
 						<Icon name="disc" size={14} />
 						<span>녹음 스튜디오</span>
 					</button>
+
+					<a
+						href="/db-test"
+						class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all flex items-center gap-1.5"
+						title="Supabase PostgreSQL 통신 테스트"
+					>
+						<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+						<span>DB 테스트</span>
+					</a>
 				</nav>
 
-				{#if activeTab === 'studio'}
-					<button
-						type="button"
-						onclick={generateSampleVoice}
-						class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/60 transition-all cursor-pointer"
-					>
-						<Icon name="sparkles" size={14} class="text-indigo-400" />
-						<span>샘플 생성</span>
-					</button>
-				{/if}
+					{#if activeTab === 'studio'}
+						<button
+							type="button"
+							onclick={generateSampleVoice}
+							class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/60 transition-all cursor-pointer"
+						>
+							<Icon name="sparkles" size={14} class="text-indigo-400" />
+							<span>샘플 생성</span>
+						</button>
+					{/if}
+
+					<!-- 사용자 프로필 / 로그인 / 회원가입 UI -->
+					<div class="ml-1 pl-2 border-l border-slate-800">
+						<UserNav />
+					</div>
+				</div>
 			</div>
-		</div>
 	</header>
 
 	<!-- Main Content Area -->
